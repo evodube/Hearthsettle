@@ -149,7 +149,7 @@ void Settler::GatherBodies(Entry& a_entry, RE::TESObjectREFR* a_ref)
 	a_entry.gathered = !a_entry.bodies.empty();
 }
 
-void Settler::Clamp(Entry& a_entry)
+void Settler::Clamp(Entry& a_entry, RE::TESObjectREFR* a_ref)
 {
 	const auto& s = Settings::Get();
 	for (auto& b : a_entry.bodies) {
@@ -157,14 +157,51 @@ void Settler::Clamp(Entry& a_entry)
 		if (!hk || !hk->world) {
 			continue;  // removed from the physics world
 		}
+		const float speed = std::sqrt(hk->motion.linearVelocity.SqrLength3());
+		bool        changed = false;
+
 		RE::hkVector4 capped;
 		if (Cap(hk->motion.linearVelocity, s.maxLinearSpeed, capped)) {
 			b.body->SetLinearVelocity(capped);
+			changed = true;
 		}
 		if (Cap(hk->motion.angularVelocity, s.maxAngularSpeed, capped)) {
 			b.body->SetAngularVelocity(capped);
+			changed = true;
+		}
+
+		if (changed) {
+			++_stats.clamps;
+			if (!a_entry.caught) {
+				a_entry.caught = true;
+				++_stats.caught;
+			}
+			if (speed > _stats.fastest) {
+				_stats.fastest = speed;
+				const auto name = a_ref->GetName();
+				_stats.fastestName = name ? name : "";
+				_stats.fastestID = a_ref->GetFormID();
+			}
+			if (s.debugLog) {
+				logger::debug("Caught {:08X} '{}' at {:.2f} m/s", a_ref->GetFormID(), a_ref->GetName() ? a_ref->GetName() : "", speed);
+			}
 		}
 	}
+}
+
+void Settler::LogStats()
+{
+	if (_stats.refs == 0) {
+		return;
+	}
+	if (_stats.caught == 0) {
+		logger::info("Settled {} objects ({} bodies): nothing tried to move fast", _stats.refs, _stats.bodies);
+	} else {
+		logger::info("Settled {} objects ({} bodies): caught {} moving too fast ({} corrections); fastest {:.2f} m/s, {:08X} '{}'",
+			_stats.refs, _stats.bodies, _stats.caught, _stats.clamps, _stats.fastest, _stats.fastestID, _stats.fastestName);
+	}
+	spdlog::default_logger()->flush();
+	_stats = {};
 }
 
 void Settler::Release(Entry& a_entry)
@@ -191,7 +228,11 @@ void Settler::Tick(float a_delta)
 		if (!handle) {
 			continue;
 		}
-		auto& entry = _entries[handle.native_handle()];
+		auto [it, inserted] = _entries.try_emplace(handle.native_handle());
+		auto& entry = it->second;
+		if (inserted) {
+			++_stats.refs;
+		}
 		entry.handle = handle;
 		entry.remaining = s.settleSeconds;  // new, or restart the window
 	}
@@ -220,8 +261,11 @@ void Settler::Tick(float a_delta)
 
 		if (!entry.gathered) {
 			GatherBodies(entry, ref.get());
+			if (entry.gathered) {
+				_stats.bodies += entry.bodies.size();
+			}
 		}
-		Clamp(entry);
+		Clamp(entry, ref.get());
 
 		if (!loading) {
 			entry.remaining -= dt;
@@ -232,5 +276,9 @@ void Settler::Tick(float a_delta)
 			continue;
 		}
 		++it;
+	}
+
+	if (_entries.empty()) {
+		LogStats();
 	}
 }

@@ -41,7 +41,20 @@ private:
 		RE::ObjectRefHandle handle;
 		float               remaining{ 0.0f };
 		bool                gathered{ false };
+		bool                caught{ false };
 		std::vector<Body>   bodies;
+	};
+
+	// Summary of one settle batch, written to the log (always, not just in debug) when it ends.
+	struct Stats
+	{
+		std::size_t refs{ 0 };      // objects tracked
+		std::size_t bodies{ 0 };    // rigid bodies held
+		std::size_t caught{ 0 };    // objects that tried to move faster than the cap
+		std::size_t clamps{ 0 };    // total speed corrections
+		float       fastest{ 0.0f };
+		std::string fastestName;
+		std::uint32_t fastestID{ 0 };
 	};
 
 	Settler() = default;
@@ -50,10 +63,12 @@ private:
 	void QueueCell(RE::TESObjectCELL* a_cell);
 	void QueueRef(RE::TESObjectREFR* a_ref);
 	void GatherBodies(Entry& a_entry, RE::TESObjectREFR* a_ref);
-	void Clamp(Entry& a_entry);
+	void Clamp(Entry& a_entry, RE::TESObjectREFR* a_ref);
+	void LogStats();
 	void Release(Entry& a_entry);
 
 	std::mutex                                 _lock;
 	std::unordered_map<std::uint32_t, Entry>   _entries;  // keyed by ref handle
 	std::vector<RE::ObjectRefHandle>           _pending;  // queued from events, merged on the next tick
+	Stats                                      _stats;
 };
