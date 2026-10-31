@@ -57,8 +57,8 @@ struct Settings
 		}
 
 		settleSeconds = std::clamp(settleSeconds, 0.1f, 30.0f);
-		maxLinearSpeed = std::max(maxLinearSpeed, 0.0f);
-		maxAngularSpeed = std::max(maxAngularSpeed, 0.0f);
+		maxLinearSpeed = (std::max)(maxLinearSpeed, 0.0f);
+		maxAngularSpeed = (std::max)(maxAngularSpeed, 0.0f);
 		settleLinearDamping = std::clamp(settleLinearDamping, 0.0f, 100.0f);
 		settleAngularDamping = std::clamp(settleAngularDamping, 0.0f, 100.0f);
 	}

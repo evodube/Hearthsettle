@@ -48,7 +48,7 @@ jobs:
           cmake --preset release
 
       - name: Build
-        run: cmake --build --preset release
+        run: cmake --build --preset release -- -k 0
 
       - name: Package
         id: package
