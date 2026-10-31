@@ -52,3 +52,5 @@ CREDITS
 CommonLibSSE-NG contributors (GPL-3.0-or-later with modding exception)
 SKSE team
 meh321 - Address Library for SKSE Plugins
+alandtse - VR Address Library for SKSEVR
+adamhynek - HIGGS (its mod API is used for VR hand grabs)
