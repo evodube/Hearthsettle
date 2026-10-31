@@ -18,23 +18,36 @@ namespace
 		}
 	}
 
-	// Havok stores per-body speed limits as hkUFloat8: a log-scale byte spanning
-	// [0.01, 1e6]. This decoding is checked against the game's own data before use.
-	constexpr float kUF8Min = 0.01f;
-	constexpr float kUF8Decades = 8.0f;  // log10(1e6 / 0.01)
-
+	// Havok stores per-body speed limits as hkUFloat8: a tiny unsigned float with a
+	// 5-bit exponent and 3-bit mantissa, value = (1 + m/8) * 2^(e - 8). Skyrim's usual
+	// rigid-body template (max linear 104.4, max angular 31.57) is stored as bytes 117
+	// and 104. This decoding is checked against the game's own data before use.
 	float DecodeUF8(std::uint8_t a_v)
 	{
-		return kUF8Min * std::pow(10.0f, kUF8Decades * a_v / 255.0f);
+		const int e = a_v >> 3;
+		const int m = a_v & 7;
+		return (1.0f + m / 8.0f) * std::ldexp(1.0f, e - 8);
 	}
 
 	std::uint8_t EncodeUF8(float a_value)
 	{
-		if (a_value <= kUF8Min) {
+		if (a_value <= DecodeUF8(0)) {
 			return 0;
 		}
-		const float i = 255.0f * std::log10(a_value / kUF8Min) / kUF8Decades;
-		return static_cast<std::uint8_t>(std::clamp(std::lround(i), 0l, 255l));
+		int   exp = 0;
+		float frac = std::frexp(a_value, &exp);  // a_value = frac * 2^exp, frac in [0.5, 1)
+		// rewrite as (1 + m/8) * 2^(exp - 1)
+		int e = exp - 1 + 8;
+		int m = static_cast<int>(std::lround((frac * 2.0f - 1.0f) * 8.0f));
+		if (m == 8) {
+			m = 0;
+			++e;
+		}
+		if (e > 31) {
+			return 255;
+		}
+		e = std::clamp(e, 0, 31);
+		return static_cast<std::uint8_t>((e << 3) | m);
 	}
 
 	// Scales a velocity down to a_max if it is faster. Returns true if it changed.
@@ -178,6 +191,7 @@ void Settler::SampleLimits(const RE::hkpRigidBody* a_body)
 {
 	if (_limitState == LimitState::kUnknown) {
 		++_linHist[a_body->motion.motionState.maxLinearVelocity.value];
+		++_angHist[a_body->motion.motionState.maxAngularVelocity.value];
 		++_samples;
 	}
 }
@@ -188,22 +202,29 @@ void Settler::VerifyLimits()
 		return;
 	}
 	// Skyrim meshes almost all use the same rigid-body template: max linear velocity 104.4
-	// (Havok's own default is 200). If the most common byte decodes to one of those, the
-	// decoding matches this game and is safe to write back.
-	const auto mode = static_cast<std::uint8_t>(std::ranges::max_element(_linHist) - _linHist.begin());
-	const float decoded = DecodeUF8(mode);
-	const auto close = [&](float a_target) { return std::abs(decoded - a_target) <= a_target * 0.08f; };
-	const bool ok = close(104.4f) || close(200.0f);
+	// and max angular velocity 31.57. If the most common bytes decode to those, the
+	// decoding matches this game and is safe to write back. Both must agree.
+	const auto modeOf = [](const auto& a_hist) {
+		return static_cast<std::uint8_t>(std::ranges::max_element(a_hist) - a_hist.begin());
+	};
+	const auto within = [](float a_value, float a_target) { return std::abs(a_value - a_target) <= a_target * 0.08f; };
+	const float lin = DecodeUF8(modeOf(_linHist));
+	const float ang = DecodeUF8(modeOf(_angHist));
+	const bool  ok = within(lin, 104.4f) && within(ang, 31.57f);
 
-	std::string top;
-	auto        order = std::array<std::uint16_t, 256>{};
-	for (std::uint16_t i = 0; i < 256; ++i) {
-		order[i] = i;
-	}
-	std::ranges::sort(order, [&](auto a, auto b) { return _linHist[a] > _linHist[b]; });
-	for (int k = 0; k < 4 && _linHist[order[k]] > 0; ++k) {
-		top += std::format("{}{}x{} (~{:.1f})", top.empty() ? "" : ", ", _linHist[order[k]], order[k], DecodeUF8(static_cast<std::uint8_t>(order[k])));
-	}
+	const auto summarize = [](const std::array<std::uint32_t, 256>& a_hist) {
+		auto order = std::array<std::uint16_t, 256>{};
+		for (std::uint16_t i = 0; i < 256; ++i) {
+			order[i] = i;
+		}
+		std::ranges::sort(order, [&](auto a, auto b) { return a_hist[a] > a_hist[b]; });
+		std::string out;
+		for (int k = 0; k < 4 && a_hist[order[k]] > 0; ++k) {
+			out += std::format("{}{}x{} (~{:.1f})", out.empty() ? "" : ", ", a_hist[order[k]], order[k], DecodeUF8(static_cast<std::uint8_t>(order[k])));
+		}
+		return out;
+	};
+	const std::string top = std::format("linear {}; angular {}", summarize(_linHist), summarize(_angHist));
 
 	_limitState = ok ? LimitState::kVerified : LimitState::kRejected;
 	if (ok) {

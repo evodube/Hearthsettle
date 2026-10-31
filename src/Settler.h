@@ -88,9 +88,10 @@ private:
 	std::vector<RE::ObjectRefHandle>           _pending;  // queued from events, merged on the next tick
 	Stats                                      _stats;
 
-	// In-step limit self-check: histogram of the game's own maxLinearVelocity bytes.
+	// In-step limit self-check: histograms of the game's own max velocity bytes.
 	enum class LimitState { kUnknown, kVerified, kRejected };
 	LimitState                                 _limitState{ LimitState::kUnknown };
 	std::array<std::uint32_t, 256>             _linHist{};
+	std::array<std::uint32_t, 256>             _angHist{};
 	std::uint32_t                              _samples{ 0 };
 };
