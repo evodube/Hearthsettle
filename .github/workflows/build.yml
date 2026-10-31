@@ -69,13 +69,13 @@ jobs:
           "zip=$zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Upload mod
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: Hearthsettle
           path: dist/Hearthsettle/
 
       - name: Upload debug symbols
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: Hearthsettle-pdb
           path: build/release/Hearthsettle.pdb
