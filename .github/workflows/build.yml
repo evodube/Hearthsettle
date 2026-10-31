@@ -66,6 +66,8 @@ jobs:
           $version = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "dev-$("${{ github.sha }}".Substring(0,7))" }
           $zip = "Hearthsettle-$version.zip"
           Compress-Archive -Path dist/Hearthsettle/* -DestinationPath $zip -Force
+          $files = (Get-ChildItem -Recurse -File dist/Hearthsettle | ForEach-Object { $_.FullName.Substring((Resolve-Path dist/Hearthsettle).Path.Length + 1) }) -join ', '
+          Write-Output "::notice title=Package contents::$files"
           "zip=$zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Upload mod

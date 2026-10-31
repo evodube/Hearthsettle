@@ -34,11 +34,16 @@ if(MSVC)
 endif()
 
 # Lay out a ready-to-install mod folder: dist/Hearthsettle/SKSE/Plugins/
+# (README.txt and the full GPL text ship in SKSE/Plugins/Hearthsettle/ so they never
+# clash with other mods' LICENSE.txt files in Data/.)
 set(DIST_DIR "${CMAKE_SOURCE_DIR}/dist/Hearthsettle/SKSE/Plugins")
 add_custom_command(
 	TARGET ${PROJECT_NAME} POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E make_directory "${DIST_DIR}"
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:${PROJECT_NAME}>" "${DIST_DIR}"
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/dist-files/Hearthsettle.ini" "${DIST_DIR}"
+	COMMAND ${CMAKE_COMMAND} -E make_directory "${DIST_DIR}/Hearthsettle"
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/dist-files/README.txt" "${DIST_DIR}/Hearthsettle"
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/dist-files/LICENSE.txt" "${DIST_DIR}/Hearthsettle"
 	VERBATIM
 )

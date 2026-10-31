@@ -47,4 +47,6 @@ CommonLibSSE-NG is a submodule in `extern/CommonLibSSE-NG`, pinned to a release 
 
 ## License
 
+Copyright (C) 2026 evodube
+
 Hearthsettle is free software under the [GNU General Public License v3.0 or later](LICENSE). It links [CommonLibSSE-NG](https://github.com/alandtse/CommonLibVR), which is GPL-3.0-or-later with a modding exception, so the plugin carries the same license. You may share and modify it as long as you share your source under the same terms.
