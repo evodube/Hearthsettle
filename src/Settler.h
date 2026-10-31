@@ -7,8 +7,10 @@
 //   - linear/angular damping are raised, so anything that does move eases into place;
 //   - velocities above a small cap are scaled down every frame.
 // Sleeping bodies (zero velocity) are never touched, so nothing is woken up.
-// When the window closes the original damping is restored and the body is
-// left exactly as vanilla would have it.
+// When the window closes, objects that have been calm for a moment get their original
+// damping back and behave exactly like vanilla. Objects that are still being pushed
+// (usually ones placed inside a shelf or table) are "stuck": they keep being held until
+// they calm down, the player picks them up, or their 3D unloads. Nothing here is saved.
 class Settler :
 	public RE::BSTEventSink<RE::TESCellFullyLoadedEvent>,
 	public RE::BSTEventSink<RE::MenuOpenCloseEvent>
@@ -42,6 +44,9 @@ private:
 		float               remaining{ 0.0f };
 		bool                gathered{ false };
 		bool                caught{ false };
+		bool                stuck{ false };  // still being pushed when its window ended
+		float               calm{ 0.0f };    // seconds since the last speed correction
+		float               held{ 0.0f };    // seconds held so far
 		std::vector<Body>   bodies;
 	};
 
@@ -55,6 +60,8 @@ private:
 		float       fastest{ 0.0f };
 		std::string fastestName;
 		std::uint32_t fastestID{ 0 };
+		std::size_t stuck{ 0 };     // objects still being pushed at the end of their window
+		std::vector<std::string> stuckNames;
 	};
 
 	Settler() = default;
@@ -63,9 +70,11 @@ private:
 	void QueueCell(RE::TESObjectCELL* a_cell);
 	void QueueRef(RE::TESObjectREFR* a_ref);
 	void GatherBodies(Entry& a_entry, RE::TESObjectREFR* a_ref);
-	void Clamp(Entry& a_entry, RE::TESObjectREFR* a_ref);
+	bool Clamp(Entry& a_entry, RE::TESObjectREFR* a_ref);  // true if any speed was corrected
+	bool HasLiveBody(const Entry& a_entry) const;
 	void LogStats();
 	void Release(Entry& a_entry);
+	static std::string Describe(RE::TESObjectREFR* a_ref);
 
 	std::mutex                                 _lock;
 	std::unordered_map<std::uint32_t, Entry>   _entries;  // keyed by ref handle

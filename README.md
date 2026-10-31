@@ -12,7 +12,11 @@ When you load into a cell, Havok pushes apart objects that were placed slightly 
 - it caps the object's speed every frame, so nothing can be launched;
 - it never touches resting (sleeping) objects, so nothing gets woken up.
 
-When the window ends, the original damping is restored and objects behave exactly like vanilla. Anything you grab during the window is released immediately.
+When the window ends, objects that have been calm for half a second get their original damping back and behave exactly like vanilla.
+
+Some objects are placed slightly inside a shelf or table and get pushed out every frame; letting go of those on a timer would just launch them later. Hearthsettle keeps holding these "stuck" objects until they calm down, you pick them up, or you leave the cell. While held they stay where they are and can still be bumped gently. Nothing is saved: speed and damping are rebuilt from scratch every time a cell loads.
+
+Anything you grab is released immediately.
 
 ## Requirements
 

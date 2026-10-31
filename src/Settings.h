@@ -13,6 +13,8 @@ struct Settings
 	bool  enabled{ true };
 	bool  debugLog{ false };
 	float settleSeconds{ 2.0f };  // how long a freshly loaded object is held steady (game time, after the load screen)
+	bool  holdStuck{ true };      // keep holding objects that are still being pushed when their time is up
+	float calmSeconds{ 0.5f };    // a held object is let go once it has needed no correction for this long
 
 	// [Physics] Havok units: 1 unit ~ 1 metre (~70 Skyrim units)
 	float maxLinearSpeed{ 1.0f };   // m/s; anything faster is slowed to this while settling
@@ -57,6 +59,7 @@ struct Settings
 		}
 
 		settleSeconds = std::clamp(settleSeconds, 0.1f, 30.0f);
+		calmSeconds = std::clamp(calmSeconds, 0.05f, 10.0f);
 		maxLinearSpeed = (std::max)(maxLinearSpeed, 0.0f);
 		maxAngularSpeed = (std::max)(maxAngularSpeed, 0.0f);
 		settleLinearDamping = std::clamp(settleLinearDamping, 0.0f, 100.0f);
@@ -97,6 +100,7 @@ private:
 		static constexpr BoolKey bools[] = {
 			{ "bEnabled", &Settings::enabled },
 			{ "bDebugLog", &Settings::debugLog },
+			{ "bHoldStuck", &Settings::holdStuck },
 			{ "bMisc", &Settings::misc },
 			{ "bFood", &Settings::food },
 			{ "bIngredients", &Settings::ingredients },
@@ -112,6 +116,7 @@ private:
 		};
 		static constexpr FloatKey floats[] = {
 			{ "fSettleSeconds", &Settings::settleSeconds },
+			{ "fCalmSeconds", &Settings::calmSeconds },
 			{ "fMaxLinearSpeed", &Settings::maxLinearSpeed },
 			{ "fMaxAngularSpeed", &Settings::maxAngularSpeed },
 			{ "fSettleLinearDamping", &Settings::settleLinearDamping },

@@ -149,9 +149,10 @@ void Settler::GatherBodies(Entry& a_entry, RE::TESObjectREFR* a_ref)
 	a_entry.gathered = !a_entry.bodies.empty();
 }
 
-void Settler::Clamp(Entry& a_entry, RE::TESObjectREFR* a_ref)
+bool Settler::Clamp(Entry& a_entry, RE::TESObjectREFR* a_ref)
 {
 	const auto& s = Settings::Get();
+	bool        any = false;
 	for (auto& b : a_entry.bodies) {
 		const auto hk = b.body ? b.body->GetRigidBody() : nullptr;
 		if (!hk || !hk->world) {
@@ -171,6 +172,7 @@ void Settler::Clamp(Entry& a_entry, RE::TESObjectREFR* a_ref)
 		}
 
 		if (changed) {
+			any = true;
 			++_stats.clamps;
 			if (!a_entry.caught) {
 				a_entry.caught = true;
@@ -183,10 +185,28 @@ void Settler::Clamp(Entry& a_entry, RE::TESObjectREFR* a_ref)
 				_stats.fastestID = a_ref->GetFormID();
 			}
 			if (s.debugLog) {
-				logger::debug("Caught {:08X} '{}' at {:.2f} m/s", a_ref->GetFormID(), a_ref->GetName() ? a_ref->GetName() : "", speed);
+				logger::debug("Caught {} at {:.2f} m/s", Describe(a_ref), speed);
 			}
 		}
 	}
+	return any;
+}
+
+bool Settler::HasLiveBody(const Entry& a_entry) const
+{
+	for (const auto& b : a_entry.bodies) {
+		const auto hk = b.body ? b.body->GetRigidBody() : nullptr;
+		if (hk && hk->world) {
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string Settler::Describe(RE::TESObjectREFR* a_ref)
+{
+	const auto name = a_ref ? a_ref->GetName() : nullptr;
+	return std::format("{:08X} '{}'", a_ref ? a_ref->GetFormID() : 0u, name ? name : "");
 }
 
 void Settler::LogStats()
@@ -199,6 +219,16 @@ void Settler::LogStats()
 	} else {
 		logger::info("Settled {} objects ({} bodies): caught {} moving too fast ({} corrections); fastest {:.2f} m/s, {:08X} '{}'",
 			_stats.refs, _stats.bodies, _stats.caught, _stats.clamps, _stats.fastest, _stats.fastestID, _stats.fastestName);
+	}
+	if (_stats.stuck > 0) {
+		std::string names;
+		for (const auto& n : _stats.stuckNames) {
+			names += (names.empty() ? "" : ", ") + n;
+		}
+		if (_stats.stuck > _stats.stuckNames.size()) {
+			names += std::format(" and {} more", _stats.stuck - _stats.stuckNames.size());
+		}
+		logger::info("  {} stuck (still being pushed), holding until they calm down: {}", _stats.stuck, names);
 	}
 	spdlog::default_logger()->flush();
 	_stats = {};
@@ -232,9 +262,15 @@ void Settler::Tick(float a_delta)
 		auto& entry = it->second;
 		if (inserted) {
 			++_stats.refs;
+		} else if (entry.stuck || (entry.gathered && !HasLiveBody(entry))) {
+			// Held from an earlier visit, or its 3D was rebuilt: hand back the old bodies
+			// and start fresh. (Seen twice in the same load is just a window restart.)
+			Release(entry);
+			entry = Entry{};
+			++_stats.refs;
 		}
 		entry.handle = handle;
-		entry.remaining = s.settleSeconds;  // new, or restart the window
+		entry.remaining = s.settleSeconds;
 	}
 
 	if (_entries.empty()) {
@@ -264,21 +300,52 @@ void Settler::Tick(float a_delta)
 			if (entry.gathered) {
 				_stats.bodies += entry.bodies.size();
 			}
-		}
-		Clamp(entry, ref.get());
-
-		if (!loading) {
-			entry.remaining -= dt;
-		}
-		if (entry.remaining <= 0.0f) {
+		} else if (!ref->Get3D() || !HasLiveBody(entry)) {
+			// Its 3D or physics unloaded (left the cell, fast travel): nothing left to hold.
+			if (entry.stuck && s.debugLog) {
+				logger::debug("Dropped stuck {}: unloaded after {:.1f}s", Describe(ref.get()), entry.held);
+			}
 			Release(entry);
 			it = _entries.erase(it);
 			continue;
 		}
+
+		if (Clamp(entry, ref.get())) {
+			entry.calm = 0.0f;
+		}
+
+		if (!loading) {
+			entry.remaining -= dt;
+			entry.calm += dt;
+			entry.held += dt;
+		}
+
+		if (entry.remaining <= 0.0f) {
+			const bool calm = entry.calm >= s.calmSeconds;
+			if (!entry.gathered || calm || !s.holdStuck) {
+				if (entry.stuck) {
+					logger::info("Released stuck {} after {:.1f}s, it calmed down", Describe(ref.get()), entry.held);
+				}
+				Release(entry);
+				it = _entries.erase(it);
+				continue;
+			}
+			if (!entry.stuck) {
+				entry.stuck = true;
+				++_stats.stuck;
+				if (_stats.stuckNames.size() < 5) {
+					_stats.stuckNames.push_back(Describe(ref.get()));
+				}
+			}
+		}
 		++it;
 	}
 
-	if (_entries.empty()) {
-		LogStats();
+	// Write the summary once only stuck objects (or nothing) are left in this batch.
+	if (_stats.refs > 0) {
+		const bool onlyStuck = std::ranges::all_of(_entries, [](const auto& a_kv) { return a_kv.second.stuck; });
+		if (onlyStuck) {
+			LogStats();
+		}
 	}
 }
