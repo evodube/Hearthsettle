@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg/master/scripts/vcpkg.schema.json",
   "name": "hearthsettle",
-  "version-semver": "1.2.1",
+  "version-semver": "1.2.2",
   "description": "SKSE plugin that stops loose clutter from flying when a cell loads.",
   "builtin-baseline": "ee12231b20c95013c6638d845d04c91559a1d1ff",
   "supports": "windows & x64",

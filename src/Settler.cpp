@@ -201,16 +201,18 @@ void Settler::VerifyLimits()
 	if (_limitState != LimitState::kUnknown || _samples < 50) {
 		return;
 	}
-	// Skyrim meshes almost all use the same rigid-body template: max linear velocity 104.4
-	// and max angular velocity 31.57. If the most common bytes decode to those, the
-	// decoding matches this game and is safe to write back. Both must agree.
+	// Skyrim meshes almost all use the same rigid-body template, with max linear velocity
+	// 104.4. That value is distinctive, so if the most common byte decodes to it, the
+	// decoding matches this game and is safe to write back. The angular limit uses the
+	// same encoding; its value varies by setup (e.g. 22.0), so it is only reported.
 	const auto modeOf = [](const auto& a_hist) {
 		return static_cast<std::uint8_t>(std::ranges::max_element(a_hist) - a_hist.begin());
 	};
 	const auto within = [](float a_value, float a_target) { return std::abs(a_value - a_target) <= a_target * 0.08f; };
 	const float lin = DecodeUF8(modeOf(_linHist));
 	const float ang = DecodeUF8(modeOf(_angHist));
-	const bool  ok = within(lin, 104.4f) && within(ang, 31.57f);
+	const bool  ok = within(lin, 104.4f);
+	(void)ang;
 
 	const auto summarize = [](const std::array<std::uint32_t, 256>& a_hist) {
 		auto order = std::array<std::uint16_t, 256>{};
