@@ -84,4 +84,11 @@ jobs:
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "${{ github.ref_name }}" "${{ steps.package.outputs.zip }}" build/release/Hearthsettle.pdb --title "Hearthsettle ${{ github.ref_name }}" --generate-notes $(if ("${{ github.ref_name }}" -like "*-*") { "--prerelease" })
+        run: |
+          $tag = "${{ github.ref_name }}"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            $pre = if ($tag -like "*-*") { "--prerelease" } else { $null }
+            gh release create $tag --title "Hearthsettle $tag" --generate-notes $pre
+          }
+          gh release upload $tag "${{ steps.package.outputs.zip }}" build/release/Hearthsettle.pdb --clobber
