@@ -192,8 +192,8 @@ void Settler::VerifyLimits()
 	// decoding matches this game and is safe to write back.
 	const auto mode = static_cast<std::uint8_t>(std::ranges::max_element(_linHist) - _linHist.begin());
 	const float decoded = DecodeUF8(mode);
-	const auto near = [&](float a_target) { return std::abs(decoded - a_target) <= a_target * 0.08f; };
-	const bool ok = near(104.4f) || near(200.0f);
+	const auto close = [&](float a_target) { return std::abs(decoded - a_target) <= a_target * 0.08f; };
+	const bool ok = close(104.4f) || close(200.0f);
 
 	std::string top;
 	auto        order = std::array<std::uint16_t, 256>{};
