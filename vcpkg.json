@@ -6,9 +6,21 @@
   "builtin-baseline": "ee12231b20c95013c6638d845d04c91559a1d1ff",
   "supports": "windows & x64",
   "dependencies": [
-    "spdlog",
-    "fmt",
-    "directxtk",
-    "directxmath"
+    {
+      "name": "directxmath",
+      "version>=": "2025-04-03"
+    },
+    {
+      "name": "directxtk",
+      "version>=": "2025-10-27"
+    },
+    {
+      "name": "fmt",
+      "version>=": "12.1.0"
+    },
+    {
+      "name": "spdlog",
+      "version>=": "1.16.0"
+    }
   ]
 }
