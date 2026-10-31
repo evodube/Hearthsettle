@@ -72,7 +72,6 @@ private:
 
 	bool IsClutter(RE::TESObjectREFR* a_ref) const;
 	void QueueCell(RE::TESObjectCELL* a_cell);
-	void QueueRef(RE::TESObjectREFR* a_ref);
 	void GatherBodies(Entry& a_entry, RE::TESObjectREFR* a_ref);
 	bool Clamp(Entry& a_entry, RE::TESObjectREFR* a_ref);  // true if any speed was corrected
 	bool HasLiveBody(const Entry& a_entry) const;

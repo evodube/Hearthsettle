@@ -44,3 +44,7 @@ cmake --build --preset release
 The mod folder is written to `dist/Hearthsettle/`.
 
 CommonLibSSE-NG is a submodule in `extern/CommonLibSSE-NG`, pinned to a release tag so CI can link its prebuilt library.
+
+## License
+
+Hearthsettle is free software under the [GNU General Public License v3.0 or later](LICENSE). It links [CommonLibSSE-NG](https://github.com/alandtse/CommonLibVR), which is GPL-3.0-or-later with a modding exception, so the plugin carries the same license. You may share and modify it as long as you share your source under the same terms.

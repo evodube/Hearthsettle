@@ -125,14 +125,6 @@ void Settler::QueueCell(RE::TESObjectCELL* a_cell)
 	_pending.insert(_pending.end(), found.begin(), found.end());
 }
 
-void Settler::QueueRef(RE::TESObjectREFR* a_ref)
-{
-	if (a_ref && IsClutter(a_ref)) {
-		std::scoped_lock l(_lock);
-		_pending.push_back(a_ref->GetHandle());
-	}
-}
-
 RE::BSEventNotifyControl Settler::ProcessEvent(const RE::TESCellFullyLoadedEvent* a_event, RE::BSTEventSource<RE::TESCellFullyLoadedEvent>*)
 {
 	if (a_event && Settings::Get().enabled) {
