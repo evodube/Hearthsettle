@@ -48,7 +48,17 @@ jobs:
           cmake --preset release
 
       - name: Build
-        run: cmake --build --preset release -- -k 0
+        run: |
+          cmake --build --preset release -- -k 0 2>&1 | Tee-Object -FilePath build-output.txt
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            # Surface linker/tool errors (which have no file:line) as one annotation.
+            $lines = Select-String -Path build-output.txt -Pattern 'error|FAILED|unresolved|LNK|fatal' |
+              Select-Object -First 40 | ForEach-Object { $_.Line.Trim() }
+            $msg = ($lines -join "`n") -replace '%','%25' -replace "`r",'' -replace "`n",'%0A'
+            Write-Output "::error title=Build errors::$msg"
+            exit $code
+          }
 
       - name: Package
         id: package
