@@ -6,6 +6,7 @@
 #include <SKSE/SKSE.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <filesystem>
 #include <format>

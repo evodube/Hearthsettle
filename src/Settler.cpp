@@ -18,6 +18,25 @@ namespace
 		}
 	}
 
+	// Havok stores per-body speed limits as hkUFloat8: a log-scale byte spanning
+	// [0.01, 1e6]. This decoding is checked against the game's own data before use.
+	constexpr float kUF8Min = 0.01f;
+	constexpr float kUF8Decades = 8.0f;  // log10(1e6 / 0.01)
+
+	float DecodeUF8(std::uint8_t a_v)
+	{
+		return kUF8Min * std::pow(10.0f, kUF8Decades * a_v / 255.0f);
+	}
+
+	std::uint8_t EncodeUF8(float a_value)
+	{
+		if (a_value <= kUF8Min) {
+			return 0;
+		}
+		const float i = 255.0f * std::log10(a_value / kUF8Min) / kUF8Decades;
+		return static_cast<std::uint8_t>(std::clamp(std::lround(i), 0l, 255l));
+	}
+
 	// Scales a velocity down to a_max if it is faster. Returns true if it changed.
 	bool Cap(const RE::hkVector4& a_velocity, float a_max, RE::hkVector4& a_out)
 	{
@@ -136,9 +155,12 @@ void Settler::GatherBodies(Entry& a_entry, RE::TESObjectREFR* a_ref)
 		const auto hk = body ? body->GetRigidBody() : nullptr;
 		if (hk && IsDynamic(hk)) {
 			auto& state = hk->motion.motionState;
+			SampleLimits(hk);
 			a_entry.bodies.push_back({ RE::NiPointer<RE::bhkRigidBody>(body),
 				static_cast<float>(state.linearDamping),
-				static_cast<float>(state.angularDamping) });
+				static_cast<float>(state.angularDamping),
+				state.maxLinearVelocity.value,
+				state.maxAngularVelocity.value });
 			state.linearDamping = s.settleLinearDamping;
 			state.angularDamping = s.settleAngularDamping;
 		}
@@ -147,6 +169,65 @@ void Settler::GatherBodies(Entry& a_entry, RE::TESObjectREFR* a_ref)
 
 	// No collision yet (Havok can attach a frame after the 3D). Retry until the window closes.
 	a_entry.gathered = !a_entry.bodies.empty();
+	if (a_entry.gathered) {
+		ApplyInStepLimits(a_entry);
+	}
+}
+
+void Settler::SampleLimits(const RE::hkpRigidBody* a_body)
+{
+	if (_limitState == LimitState::kUnknown) {
+		++_linHist[a_body->motion.motionState.maxLinearVelocity.value];
+		++_samples;
+	}
+}
+
+void Settler::VerifyLimits()
+{
+	if (_limitState != LimitState::kUnknown || _samples < 50) {
+		return;
+	}
+	// Skyrim meshes almost all use the same rigid-body template: max linear velocity 104.4
+	// (Havok's own default is 200). If the most common byte decodes to one of those, the
+	// decoding matches this game and is safe to write back.
+	const auto mode = static_cast<std::uint8_t>(std::ranges::max_element(_linHist) - _linHist.begin());
+	const float decoded = DecodeUF8(mode);
+	const auto near = [&](float a_target) { return std::abs(decoded - a_target) <= a_target * 0.08f; };
+	const bool ok = near(104.4f) || near(200.0f);
+
+	std::string top;
+	auto        order = std::array<std::uint16_t, 256>{};
+	for (std::uint16_t i = 0; i < 256; ++i) {
+		order[i] = i;
+	}
+	std::ranges::sort(order, [&](auto a, auto b) { return _linHist[a] > _linHist[b]; });
+	for (int k = 0; k < 4 && _linHist[order[k]] > 0; ++k) {
+		top += std::format("{}{}x{} (~{:.1f})", top.empty() ? "" : ", ", _linHist[order[k]], order[k], DecodeUF8(static_cast<std::uint8_t>(order[k])));
+	}
+
+	_limitState = ok ? LimitState::kVerified : LimitState::kRejected;
+	if (ok) {
+		logger::info("In-step speed limit: ON (game values decode as expected; {} bodies sampled: {})", _samples, top);
+	} else {
+		logger::info("In-step speed limit: OFF, game values didn't decode as expected ({} bodies sampled: {}). Please send this line.", _samples, top);
+	}
+}
+
+void Settler::ApplyInStepLimits(Entry& a_entry) const
+{
+	const auto& s = Settings::Get();
+	if (!s.inStepLimit || _limitState != LimitState::kVerified) {
+		return;
+	}
+	const auto lin = EncodeUF8(a_entry.pushed ? s.stuckMaxLinearSpeed : s.maxLinearSpeed);
+	const auto ang = EncodeUF8(a_entry.pushed ? s.stuckMaxAngularSpeed : s.maxAngularSpeed);
+	for (auto& b : a_entry.bodies) {
+		if (const auto hk = b.body ? b.body->GetRigidBody() : nullptr) {
+			// Never raise a limit above what the mesh already had.
+			hk->motion.motionState.maxLinearVelocity.value = (std::min)(lin, b.maxLinear);
+			hk->motion.motionState.maxAngularVelocity.value = (std::min)(ang, b.maxAngular);
+		}
+	}
 }
 
 bool Settler::Clamp(Entry& a_entry, RE::TESObjectREFR* a_ref)
@@ -161,18 +242,22 @@ bool Settler::Clamp(Entry& a_entry, RE::TESObjectREFR* a_ref)
 		const float speed = std::sqrt(hk->motion.linearVelocity.SqrLength3());
 		bool        changed = false;
 
+		const float maxLin = a_entry.pushed ? s.stuckMaxLinearSpeed : s.maxLinearSpeed;
+		const float maxAng = a_entry.pushed ? s.stuckMaxAngularSpeed : s.maxAngularSpeed;
+
 		RE::hkVector4 capped;
-		if (Cap(hk->motion.linearVelocity, s.maxLinearSpeed, capped)) {
+		if (Cap(hk->motion.linearVelocity, maxLin, capped)) {
 			b.body->SetLinearVelocity(capped);
 			changed = true;
 		}
-		if (Cap(hk->motion.angularVelocity, s.maxAngularSpeed, capped)) {
+		if (Cap(hk->motion.angularVelocity, maxAng, capped)) {
 			b.body->SetAngularVelocity(capped);
 			changed = true;
 		}
 
 		if (changed) {
 			any = true;
+			++a_entry.corrections;
 			++_stats.clamps;
 			if (!a_entry.caught) {
 				a_entry.caught = true;
@@ -187,6 +272,14 @@ bool Settler::Clamp(Entry& a_entry, RE::TESObjectREFR* a_ref)
 			if (s.debugLog) {
 				logger::debug("Caught {} at {:.2f} m/s", Describe(a_ref), speed);
 			}
+		}
+	}
+	// Corrected again and again: it's being pushed by something it's stuck in.
+	if (any && !a_entry.pushed && a_entry.corrections >= 10) {
+		a_entry.pushed = true;
+		ApplyInStepLimits(a_entry);
+		if (s.debugLog) {
+			logger::debug("Pushed: {} gets the tighter limits", Describe(a_ref));
 		}
 	}
 	return any;
@@ -240,6 +333,8 @@ void Settler::Release(Entry& a_entry)
 		if (const auto hk = b.body ? b.body->GetRigidBody() : nullptr) {
 			hk->motion.motionState.linearDamping = b.linearDamping;
 			hk->motion.motionState.angularDamping = b.angularDamping;
+			hk->motion.motionState.maxLinearVelocity.value = b.maxLinear;
+			hk->motion.motionState.maxAngularVelocity.value = b.maxAngular;
 		}
 	}
 	a_entry.bodies.clear();
@@ -340,6 +435,8 @@ void Settler::Tick(float a_delta)
 		}
 		++it;
 	}
+
+	VerifyLimits();
 
 	// Write the summary once only stuck objects (or nothing) are left in this batch.
 	if (_stats.refs > 0) {

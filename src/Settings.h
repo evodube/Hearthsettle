@@ -21,6 +21,9 @@ struct Settings
 	float maxAngularSpeed{ 3.0f };  // rad/s
 	float settleLinearDamping{ 8.0f };
 	float settleAngularDamping{ 8.0f };
+	float stuckMaxLinearSpeed{ 0.1f };   // tighter cap once an object is clearly being pushed
+	float stuckMaxAngularSpeed{ 0.5f };
+	bool  inStepLimit{ true };           // also limit speed inside each physics step (self-verified)
 
 	// [Objects] which base form types count as loose clutter
 	bool misc{ true };         // plates, cups, cutlery, tools, buckets...
@@ -62,6 +65,8 @@ struct Settings
 		calmSeconds = std::clamp(calmSeconds, 0.05f, 10.0f);
 		maxLinearSpeed = (std::max)(maxLinearSpeed, 0.0f);
 		maxAngularSpeed = (std::max)(maxAngularSpeed, 0.0f);
+		stuckMaxLinearSpeed = (std::max)(stuckMaxLinearSpeed, 0.0f);
+		stuckMaxAngularSpeed = (std::max)(stuckMaxAngularSpeed, 0.0f);
 		settleLinearDamping = std::clamp(settleLinearDamping, 0.0f, 100.0f);
 		settleAngularDamping = std::clamp(settleAngularDamping, 0.0f, 100.0f);
 	}
@@ -101,6 +106,7 @@ private:
 			{ "bEnabled", &Settings::enabled },
 			{ "bDebugLog", &Settings::debugLog },
 			{ "bHoldStuck", &Settings::holdStuck },
+			{ "bInStepLimit", &Settings::inStepLimit },
 			{ "bMisc", &Settings::misc },
 			{ "bFood", &Settings::food },
 			{ "bIngredients", &Settings::ingredients },
@@ -121,6 +127,8 @@ private:
 			{ "fMaxAngularSpeed", &Settings::maxAngularSpeed },
 			{ "fSettleLinearDamping", &Settings::settleLinearDamping },
 			{ "fSettleAngularDamping", &Settings::settleAngularDamping },
+			{ "fStuckMaxLinearSpeed", &Settings::stuckMaxLinearSpeed },
+			{ "fStuckMaxAngularSpeed", &Settings::stuckMaxAngularSpeed },
 		};
 
 		for (const auto& k : bools) {

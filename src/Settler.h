@@ -36,6 +36,8 @@ private:
 		RE::NiPointer<RE::bhkRigidBody> body;
 		float                           linearDamping;
 		float                           angularDamping;
+		std::uint8_t                    maxLinear;   // original in-step limits (Havok hkUFloat8)
+		std::uint8_t                    maxAngular;
 	};
 
 	struct Entry
@@ -45,6 +47,8 @@ private:
 		bool                gathered{ false };
 		bool                caught{ false };
 		bool                stuck{ false };  // still being pushed when its window ended
+		bool                pushed{ false }; // needed many corrections: use the tighter limits
+		std::uint32_t       corrections{ 0 };
 		float               calm{ 0.0f };    // seconds since the last speed correction
 		float               held{ 0.0f };    // seconds held so far
 		std::vector<Body>   bodies;
@@ -72,6 +76,9 @@ private:
 	void GatherBodies(Entry& a_entry, RE::TESObjectREFR* a_ref);
 	bool Clamp(Entry& a_entry, RE::TESObjectREFR* a_ref);  // true if any speed was corrected
 	bool HasLiveBody(const Entry& a_entry) const;
+	void ApplyInStepLimits(Entry& a_entry) const;
+	void SampleLimits(const RE::hkpRigidBody* a_body);
+	void VerifyLimits();
 	void LogStats();
 	void Release(Entry& a_entry);
 	static std::string Describe(RE::TESObjectREFR* a_ref);
@@ -80,4 +87,10 @@ private:
 	std::unordered_map<std::uint32_t, Entry>   _entries;  // keyed by ref handle
 	std::vector<RE::ObjectRefHandle>           _pending;  // queued from events, merged on the next tick
 	Stats                                      _stats;
+
+	// In-step limit self-check: histogram of the game's own maxLinearVelocity bytes.
+	enum class LimitState { kUnknown, kVerified, kRejected };
+	LimitState                                 _limitState{ LimitState::kUnknown };
+	std::array<std::uint32_t, 256>             _linHist{};
+	std::uint32_t                              _samples{ 0 };
 };

@@ -16,6 +16,8 @@ When the window ends, objects that have been calm for half a second get their or
 
 Some objects are placed slightly inside a shelf or table and get pushed out every frame; letting go of those on a timer would just launch them later. Hearthsettle keeps holding these "stuck" objects until they calm down, you pick them up, or you leave the cell. While held they stay where they are and can still be bumped gently. Nothing is saved: speed and damping are rebuilt from scratch every time a cell loads.
 
+Objects that need correcting again and again (stuck inside a shelf or wall) get a much tighter speed limit, so they creep out instead of sliding off. Where the game's data allows it, the limits are also enforced inside each physics step, so a launch is stopped before the object moves; the plugin verifies it can read the game's values first and logs whether this is on.
+
 Anything you grab is released immediately.
 
 ## Requirements
