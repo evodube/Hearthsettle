@@ -14,12 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+#include "Higgs.h"
 #include "Settings.h"
 #include "Settler.h"
 
 namespace
 {
-	// PlayerCharacter::Update runs once per frame while the game is unpaused (SE/AE vtable slot 0xAD).
+	// PlayerCharacter::Update runs once per frame while the game is unpaused.
+	// Vtable slot 0xAD on SE/AE and 0xAF on VR (per CommonLibSSE-NG's Actor::Update).
 	struct PlayerUpdate
 	{
 		static void thunk(RE::PlayerCharacter* a_player, float a_delta)
@@ -32,14 +34,41 @@ namespace
 		static void Install()
 		{
 			REL::Relocation<std::uintptr_t> vtbl{ RE::VTABLE_PlayerCharacter[0] };
-			func = vtbl.write_vfunc(0xAD, thunk);
+			func = vtbl.write_vfunc(REL::Relocate<std::size_t>(0xAD, 0xAD, 0xAF), thunk);
 		}
 	};
 
+	// HIGGS (VR hand physics) grabs and pulls objects itself, so the game's own grab check
+	// never sees them. Let go of anything a HIGGS hand grabs or pulls right away.
+	void OnHiggsGrab(bool, RE::TESObjectREFR* a_ref) { Settler::Get().ReleaseRef(a_ref); }
+
+	void ConnectHiggs()
+	{
+		if (!REL::Module::IsVR()) {
+			return;
+		}
+		const auto higgs = Higgs::Fetch();
+		if (!higgs) {
+			logger::info("HIGGS not found; using the game's own grab detection");
+			return;
+		}
+		higgs->AddGrabbedCallback(OnHiggsGrab);
+		higgs->AddPulledCallback(OnHiggsGrab);
+		Settler::Get().SetHiggs(higgs);
+		logger::info("HIGGS build {} found: objects grabbed or pulled by your hands are let go immediately", higgs->GetBuildNumber());
+	}
+
 	void OnMessage(SKSE::MessagingInterface::Message* a_msg)
 	{
-		if (a_msg->type == SKSE::MessagingInterface::kDataLoaded) {
+		switch (a_msg->type) {
+		case SKSE::MessagingInterface::kPostPostLoad:
+			ConnectHiggs();
+			break;
+		case SKSE::MessagingInterface::kDataLoaded:
 			Settler::Get().Install();
+			break;
+		default:
+			break;
 		}
 	}
 }
@@ -48,10 +77,8 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
 	SKSE::Init(a_skse);
 
-	if (REL::Module::IsVR()) {
-		logger::error("Hearthsettle does not support Skyrim VR");
-		return false;
-	}
+	logger::info("Runtime: {} {}", REL::Module::IsVR() ? "Skyrim VR" : (REL::Module::IsAE() ? "Skyrim AE" : "Skyrim SE"),
+		REL::Module::get().version().string());
 
 	auto& settings = Settings::Get();
 	settings.Load("Data/SKSE/Plugins/Hearthsettle.ini");

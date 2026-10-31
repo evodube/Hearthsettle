@@ -2,7 +2,7 @@
 
 An SKSE plugin that stops loose clutter (plates, cutlery, food, books...) from flying across the room when a cell loads.
 
-One DLL for Skyrim SE 1.5.97 and AE 1.6.x (Steam and GOG). VR is not supported.
+One DLL for Skyrim SE 1.5.97, AE 1.6.x (Steam and GOG) and Skyrim VR.
 
 ## How it works
 
@@ -22,12 +22,18 @@ Anything you grab is released immediately.
 
 ## Requirements
 
+SE / AE:
 - SKSE64
 - Address Library for SKSE Plugins
 
+VR:
+- SKSEVR
+- VR Address Library for SKSEVR
+- HIGGS is optional and supported: anything a HIGGS hand grabs or pulls is let go immediately.
+
 ## Settings
 
-`Data/SKSE/Plugins/Hearthsettle.ini`. See the comments in the file. Turn on `bDebugLog` to log what gets tracked per cell to `Documents/My Games/Skyrim Special Edition/SKSE/Hearthsettle.log`.
+`Data/SKSE/Plugins/Hearthsettle.ini`. See the comments in the file. Turn on `bDebugLog` to log what gets tracked per cell to `Documents/My Games/Skyrim Special Edition/SKSE/Hearthsettle.log` (VR: `Documents/My Games/Skyrim VR/SKSE/Hearthsettle.log`).
 
 ## Building
 

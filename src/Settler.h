@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "Higgs.h"
+
 // Holds freshly loaded loose clutter steady for a short window so Havok's
 // load-time overlap correction can't launch it.
 //
@@ -42,6 +44,12 @@ public:
 
 	// Called once per frame from the PlayerCharacter::Update hook (main thread).
 	void Tick(float a_delta);
+
+	// Let go of a tracked object now (e.g. a VR hand grabbed or pulled it). Thread-safe.
+	void ReleaseRef(RE::TESObjectREFR* a_ref);
+
+	// VR: HIGGS interface, used to check what each hand is holding.
+	void SetHiggs(Higgs::IHiggsInterface001* a_higgs) { _higgs = a_higgs; }
 
 	RE::BSEventNotifyControl ProcessEvent(const RE::TESCellFullyLoadedEvent* a_event, RE::BSTEventSource<RE::TESCellFullyLoadedEvent>*) override;
 	RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override;
@@ -101,6 +109,8 @@ private:
 	std::mutex                                 _lock;
 	std::unordered_map<std::uint32_t, Entry>   _entries;  // keyed by ref handle
 	std::vector<RE::ObjectRefHandle>           _pending;  // queued from events, merged on the next tick
+	std::vector<std::uint32_t>                 _releases; // handles to let go of on the next tick
+	Higgs::IHiggsInterface001*                 _higgs{ nullptr };
 	Stats                                      _stats;
 
 	// In-step limit self-check: histograms of the game's own max velocity bytes.

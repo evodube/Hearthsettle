@@ -27,10 +27,11 @@ into place instead of flying, then hands it back to normal physics.
 
 REQUIREMENTS
 ------------
-- SKSE64
-- Address Library for SKSE Plugins
+SE / AE:  SKSE64 + Address Library for SKSE Plugins
+VR:       SKSEVR + VR Address Library for SKSEVR
+          (HIGGS optional and supported)
 
-Skyrim SE 1.5.97 and AE 1.6.x (Steam and GOG). Not for Skyrim VR.
+Skyrim SE 1.5.97, AE 1.6.x (Steam and GOG) and Skyrim VR, one DLL.
 No ESP. Nothing is saved, so it is safe to add or remove mid-playthrough.
 
 FILES
@@ -43,6 +44,7 @@ SKSE/Plugins/Hearthsettle/LICENSE.txt        GNU GPL v3.0 full text
 LOG
 ---
 Documents/My Games/Skyrim Special Edition/SKSE/Hearthsettle.log
+VR: Documents/My Games/Skyrim VR/SKSE/Hearthsettle.log
 If something still flies, please include this log in your bug report.
 
 CREDITS

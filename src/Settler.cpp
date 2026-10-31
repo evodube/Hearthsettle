@@ -371,14 +371,37 @@ void Settler::Release(Entry& a_entry)
 	a_entry.bodies.clear();
 }
 
+void Settler::ReleaseRef(RE::TESObjectREFR* a_ref)
+{
+	if (!a_ref) {
+		return;
+	}
+	const auto handle = a_ref->GetHandle();
+	if (handle) {
+		std::scoped_lock l(_lock);
+		_releases.push_back(handle.native_handle());
+	}
+}
+
 void Settler::Tick(float a_delta)
 {
 	const auto& s = Settings::Get();
 
 	std::vector<RE::ObjectRefHandle> pending;
+	std::vector<std::uint32_t>       releases;
 	{
 		std::scoped_lock l(_lock);
 		pending.swap(_pending);
+		releases.swap(_releases);
+	}
+	for (const auto key : releases) {
+		if (const auto it = _entries.find(key); it != _entries.end()) {
+			if (s.debugLog) {
+				logger::debug("Released {}: grabbed or pulled", Describe(it->second.handle.get().get()));
+			}
+			Release(it->second);
+			_entries.erase(it);
+		}
 	}
 	for (const auto& handle : pending) {
 		if (!handle) {
@@ -408,14 +431,30 @@ void Settler::Tick(float a_delta)
 	// The first frame after a load screen can be very long; don't let it eat the window.
 	const float dt = std::clamp(a_delta, 0.0f, 0.1f);
 
-	const auto player = RE::PlayerCharacter::GetSingleton();
-	const auto grabbed = player ? player->GetGrabbedRef() : RE::NiPointer<RE::TESObjectREFR>();
+	// Whatever the player is holding is never ours: the grab key on SE/AE, either hand
+	// (and HIGGS hands, if installed) on VR.
+	RE::TESObjectREFR* held[4]{};
+	if (const auto player = RE::PlayerCharacter::GetSingleton()) {
+		if (REL::Module::IsVR()) {
+			held[0] = player->GetGrabbedRef(RE::VR_DEVICE::kLeftController).get();
+			held[1] = player->GetGrabbedRef(RE::VR_DEVICE::kRightController).get();
+		} else {
+			held[0] = player->GetGrabbedRef().get();
+		}
+	}
+	if (_higgs) {
+		held[2] = _higgs->GetGrabbedObject(true);
+		held[3] = _higgs->GetGrabbedObject(false);
+	}
+	const auto isHeld = [&](const RE::TESObjectREFR* a_ref) {
+		return std::ranges::find(held, a_ref) != std::end(held);
+	};
 
 	for (auto it = _entries.begin(); it != _entries.end();) {
 		auto& entry = it->second;
 		const auto ref = entry.handle.get();
 
-		if (!ref || ref->IsDisabled() || ref->IsMarkedForDeletion() || ref == grabbed) {
+		if (!ref || ref->IsDisabled() || ref->IsMarkedForDeletion() || isHeld(ref.get())) {
 			Release(entry);  // gone, or the player picked it up: hand it straight back
 			it = _entries.erase(it);
 			continue;
