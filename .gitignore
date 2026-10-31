@@ -1,0 +1,6 @@
+build/
+dist/
+.vs/
+vcpkg_installed/
+vcpkg_binary_cache/
+CMakeUserPresets.json
