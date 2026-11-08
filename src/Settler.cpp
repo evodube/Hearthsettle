@@ -170,6 +170,32 @@ void Settler::GatherBodies(Entry& a_entry, RE::TESObjectREFR* a_ref)
 	}
 
 	const auto& s = Settings::Get();
+
+	// Hanging things (lanterns on chains, swinging signs) are tied to something by a Havok
+	// constraint and are meant to sway, in the wind or when bumped. Loose clutter never has
+	// a constraint. Leave anything with one completely alone.
+	if (s.skipConstrained) {
+		bool constrained = false;
+		RE::BSVisit::TraverseScenegraphCollision(root, [&](RE::bhkNiCollisionObject* a_collision) {
+			const auto worldObject = a_collision ? a_collision->body.get() : nullptr;
+			const auto body = worldObject ? worldObject->AsBhkRigidBody() : nullptr;
+			const auto hk = body ? body->GetRigidBody() : nullptr;
+			if (hk && (hk->constraintsMaster.size > 0 || hk->constraintsSlave.size() > 0)) {
+				constrained = true;
+				return RE::BSVisit::BSVisitControl::kStop;
+			}
+			return RE::BSVisit::BSVisitControl::kContinue;
+		});
+		if (constrained) {
+			a_entry.ignored = true;
+			++_stats.hanging;
+			if (s.debugLog) {
+				logger::debug("Skipped {}: hanging or hinged (has a constraint)", Describe(a_ref));
+			}
+			return;
+		}
+	}
+
 	RE::BSVisit::TraverseScenegraphCollision(root, [&](RE::bhkNiCollisionObject* a_collision) {
 		const auto worldObject = a_collision ? a_collision->body.get() : nullptr;
 		const auto body = worldObject ? worldObject->AsBhkRigidBody() : nullptr;
@@ -338,11 +364,12 @@ void Settler::LogStats()
 	if (_stats.refs == 0) {
 		return;
 	}
+	const std::string hanging = _stats.hanging > 0 ? std::format(", {} hanging objects left to sway", _stats.hanging) : std::string{};
 	if (_stats.caught == 0) {
-		logger::info("Settled {} objects ({} bodies): nothing tried to move fast", _stats.refs, _stats.bodies);
+		logger::info("Settled {} objects ({} bodies{}): nothing tried to move fast", _stats.refs, _stats.bodies, hanging);
 	} else {
-		logger::info("Settled {} objects ({} bodies): caught {} moving too fast ({} corrections); fastest {:.2f} m/s, {:08X} '{}'",
-			_stats.refs, _stats.bodies, _stats.caught, _stats.clamps, _stats.fastest, _stats.fastestID, _stats.fastestName);
+		logger::info("Settled {} objects ({} bodies{}): caught {} moving too fast ({} corrections); fastest {:.2f} m/s, {:08X} '{}'",
+			_stats.refs, _stats.bodies, hanging, _stats.caught, _stats.clamps, _stats.fastest, _stats.fastestID, _stats.fastestName);
 	}
 	if (_stats.stuck > 0) {
 		std::string names;
@@ -421,8 +448,26 @@ void Settler::Tick(float a_delta)
 			continue;
 		}
 
+		if (entry.ignored) {
+			// Hanging/hinged: never touched. Kept until its window ends so a second sweep of
+			// the same cell doesn't pick it up (and count it) again.
+			if (!loading) {
+				entry.remaining -= dt;
+			}
+			if (entry.remaining <= 0.0f) {
+				it = _entries.erase(it);
+			} else {
+				++it;
+			}
+			continue;
+		}
+
 		if (!entry.gathered) {
 			GatherBodies(entry, ref.get());
+			if (entry.ignored) {
+				++it;
+				continue;
+			}
 			if (entry.gathered) {
 				_stats.bodies += entry.bodies.size();
 			}
