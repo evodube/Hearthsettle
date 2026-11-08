@@ -71,6 +71,7 @@ private:
 		bool                gathered{ false };
 		bool                caught{ false };
 		bool                stuck{ false };  // still being pushed when its window ended
+		bool                ignored{ false };// hanging/hinged (has a constraint): not ours to hold
 		bool                pushed{ false }; // needed many corrections: use the tighter limits
 		std::uint32_t       corrections{ 0 };
 		float               calm{ 0.0f };    // seconds since the last speed correction
@@ -89,6 +90,7 @@ private:
 		std::string fastestName;
 		std::uint32_t fastestID{ 0 };
 		std::size_t stuck{ 0 };     // objects still being pushed at the end of their window
+		std::size_t hanging{ 0 };   // skipped because they hang or swing on a constraint
 		std::vector<std::string> stuckNames;
 	};
 

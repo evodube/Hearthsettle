@@ -30,6 +30,7 @@ struct Settings
 	bool  debugLog{ false };
 	float settleSeconds{ 2.0f };  // how long a freshly loaded object is held steady (game time, after the load screen)
 	bool  holdStuck{ true };      // keep holding objects that are still being pushed when their time is up
+	bool  skipConstrained{ true };// leave hanging/hinged objects (lanterns, signs) free to sway
 	float calmSeconds{ 0.5f };    // a held object is let go once it has needed no correction for this long
 
 	// [Physics] Havok units: 1 unit ~ 1 metre (~70 Skyrim units)
@@ -122,6 +123,7 @@ private:
 			{ "bEnabled", &Settings::enabled },
 			{ "bDebugLog", &Settings::debugLog },
 			{ "bHoldStuck", &Settings::holdStuck },
+			{ "bSkipHanging", &Settings::skipConstrained },
 			{ "bInStepLimit", &Settings::inStepLimit },
 			{ "bMisc", &Settings::misc },
 			{ "bFood", &Settings::food },

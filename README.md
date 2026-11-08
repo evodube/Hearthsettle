@@ -18,6 +18,8 @@ Some objects are placed slightly inside a shelf or table and get pushed out ever
 
 Objects that need correcting again and again (stuck inside a shelf or wall) get a much tighter speed limit, so they creep out instead of sliding off. Where the game's data allows it, the limits are also enforced inside each physics step, so a launch is stopped before the object moves; the plugin verifies it can read the game's values first and logs whether this is on.
 
+Hanging and hinged objects (lanterns on chains, swinging signs) are left alone, so they keep swaying in the wind or when bumped.
+
 Anything you grab is released immediately.
 
 ## Requirements
