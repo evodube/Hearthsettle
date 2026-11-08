@@ -66,21 +66,11 @@ namespace
 		return static_cast<std::uint8_t>((e << 3) | m);
 	}
 
-	// hkSmallArray keeps its fields private; same layout here (data, then a 16-bit count).
-	struct SmallArrayView
+	// True if the mesh ties this body to something with a constraint (a chain, hinge or
+	// rope): the game keeps the constraints it loaded from the NIF in a list on the body.
+	bool IsConstrained(const RE::bhkRigidBody* a_body)
 	{
-		void*         data;
-		std::uint16_t size;
-		std::uint16_t capacityAndFlags;
-		std::uint32_t pad0C;
-	};
-	static_assert(sizeof(SmallArrayView) == sizeof(RE::hkSmallArray<void*>));
-
-	// True if the body is tied to anything by a constraint (a chain, hinge or rope).
-	bool IsConstrained(const RE::hkpRigidBody* a_body)
-	{
-		const auto master = reinterpret_cast<const SmallArrayView*>(&a_body->constraintsMaster);
-		return master->size > 0 || a_body->constraintsSlave.size() > 0;
+		return !a_body->unk28.empty();
 	}
 
 	// Scales a velocity down to a_max if it is faster. Returns true if it changed.
@@ -196,8 +186,7 @@ void Settler::GatherBodies(Entry& a_entry, RE::TESObjectREFR* a_ref)
 		RE::BSVisit::TraverseScenegraphCollision(root, [&](RE::bhkNiCollisionObject* a_collision) {
 			const auto worldObject = a_collision ? a_collision->body.get() : nullptr;
 			const auto body = worldObject ? worldObject->AsBhkRigidBody() : nullptr;
-			const auto hk = body ? body->GetRigidBody() : nullptr;
-			if (hk && IsConstrained(hk)) {
+			if (body && IsConstrained(body)) {
 				constrained = true;
 				return RE::BSVisit::BSVisitControl::kStop;
 			}
@@ -206,6 +195,9 @@ void Settler::GatherBodies(Entry& a_entry, RE::TESObjectREFR* a_ref)
 		if (constrained) {
 			a_entry.ignored = true;
 			++_stats.hanging;
+			if (_stats.hangingNames.size() < 5) {
+				_stats.hangingNames.push_back(Describe(a_ref));
+			}
 			if (s.debugLog) {
 				logger::debug("Skipped {}: hanging or hinged (has a constraint)", Describe(a_ref));
 			}
@@ -387,6 +379,16 @@ void Settler::LogStats()
 	} else {
 		logger::info("Settled {} objects ({} bodies{}): caught {} moving too fast ({} corrections); fastest {:.2f} m/s, {:08X} '{}'",
 			_stats.refs, _stats.bodies, hanging, _stats.caught, _stats.clamps, _stats.fastest, _stats.fastestID, _stats.fastestName);
+	}
+	if (_stats.hanging > 0) {
+		std::string names;
+		for (const auto& n : _stats.hangingNames) {
+			names += (names.empty() ? "" : ", ") + n;
+		}
+		if (_stats.hanging > _stats.hangingNames.size()) {
+			names += std::format(" and {} more", _stats.hanging - _stats.hangingNames.size());
+		}
+		logger::info("  {} hanging/hinged, left to sway: {}", _stats.hanging, names);
 	}
 	if (_stats.stuck > 0) {
 		std::string names;
