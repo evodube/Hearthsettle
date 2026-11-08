@@ -91,6 +91,7 @@ private:
 		std::uint32_t fastestID{ 0 };
 		std::size_t stuck{ 0 };     // objects still being pushed at the end of their window
 		std::size_t hanging{ 0 };   // skipped because they hang or swing on a constraint
+		std::vector<std::string> hangingNames;
 		std::vector<std::string> stuckNames;
 	};
 
