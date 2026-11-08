@@ -66,6 +66,23 @@ namespace
 		return static_cast<std::uint8_t>((e << 3) | m);
 	}
 
+	// hkSmallArray keeps its fields private; same layout here (data, then a 16-bit count).
+	struct SmallArrayView
+	{
+		void*         data;
+		std::uint16_t size;
+		std::uint16_t capacityAndFlags;
+		std::uint32_t pad0C;
+	};
+	static_assert(sizeof(SmallArrayView) == sizeof(RE::hkSmallArray<void*>));
+
+	// True if the body is tied to anything by a constraint (a chain, hinge or rope).
+	bool IsConstrained(const RE::hkpRigidBody* a_body)
+	{
+		const auto master = reinterpret_cast<const SmallArrayView*>(&a_body->constraintsMaster);
+		return master->size > 0 || a_body->constraintsSlave.size() > 0;
+	}
+
 	// Scales a velocity down to a_max if it is faster. Returns true if it changed.
 	bool Cap(const RE::hkVector4& a_velocity, float a_max, RE::hkVector4& a_out)
 	{
@@ -180,7 +197,7 @@ void Settler::GatherBodies(Entry& a_entry, RE::TESObjectREFR* a_ref)
 			const auto worldObject = a_collision ? a_collision->body.get() : nullptr;
 			const auto body = worldObject ? worldObject->AsBhkRigidBody() : nullptr;
 			const auto hk = body ? body->GetRigidBody() : nullptr;
-			if (hk && (hk->constraintsMaster.size > 0 || hk->constraintsSlave.size() > 0)) {
+			if (hk && IsConstrained(hk)) {
 				constrained = true;
 				return RE::BSVisit::BSVisitControl::kStop;
 			}
